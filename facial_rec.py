@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 from PCA import PCA
 from tqdm import tqdm
 
-lfw_dataset = fetch_lfw_people(min_faces_per_person=150)
+lfw_dataset = fetch_lfw_people(min_faces_per_person=100)
 
 X = lfw_dataset.data
 y = lfw_dataset.target

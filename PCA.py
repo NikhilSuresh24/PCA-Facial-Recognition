@@ -3,6 +3,7 @@ import os
 from PIL import Image
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from matplotlib.image import imread
 
 
 class PCA:
@@ -27,24 +28,55 @@ class PCA:
             # else:
             #     self.num_ids -= 1
 
+    def read_dir(self, dir_path):
+        image_paths = os.listdir(dir_path)
+        num_images = len(image_paths)
+        img_shape = self.read_img(dir_path + '/' + image_paths[0]).shape
+        images = np.empty((num_images, img_shape[0], img_shape[1]))
+        for idx, img_path in enumerate(image_paths):
+            images[idx] = self.read_img(dir_path + '/' + img_path)
+        return images
+
+    def read_img(self, image):
+        img = imread(image)
+        img = np.sum(img, 2)/img.shape[2]
+        plt.imshow(img, cmap='gray')
+        # plt.show()
+        return img
+
+    def construct_eigenfaces(self, name, images):
+        print(images.shape)
+
+        num_images, h, w = images.shape
+        avg_face = np.sum(images, 0)/images.shape[0]
+        centered_faces = np.array([img - avg_face for img in images]).T
+
+        L = np.matmul(centered_faces.T, centered_faces)
+        evals, evecs = np.linalg.eig(L)
+
+        c_evecs = np.empty((self.K, h, w))
+        for component in range(self.K):
+            c_evecs[component] = np.matmul(
+                evecs[component % num_images], centered_faces.T)
+
+        plt.imshow(c_evecs[0], cmap='gray')
+        plt.title("{}'s Eigenface".format(name))
+        plt.savefig(
+            "./eigenfaces/{}'s Eigenface".format(name))
+
     def calculate_covariances(self):
         for idx, images in enumerate(self.faces):
             num_images, img_shape = images.shape
 
-            # print("------IMG", images.shape)
             avg_face = np.sum(images, 0)/images.shape[0]
             self.avg_faces.append(avg_face)
-            # print("avg", avg_face.shape)
             centered_faces = np.array([img - avg_face for img in images]).T
-            # print("CENter", centered_faces.shape)
+            print(centered_faces.shape)
             L = np.matmul(centered_faces.T, centered_faces)
-            # print("L", L.shape)
             evals, evecs = np.linalg.eig(L)
 
-            # print("EIG", evals.shape, evecs.shape)
             c_evecs = np.empty((self.K, img_shape))
             for component in range(self.K):
-                # print(evecs.shape, centered_faces.shape)
                 c_evecs[component] = np.matmul(
                     evecs[component % num_images], centered_faces.T)
 
@@ -77,32 +109,22 @@ class PCA:
             for component in range(self.K):
                 omega[component] = np.matmul(c_evecs[component],
                                              centered_faces.T[component % num_images])
-            # print(omega, omega.shape)
             self.omegas[idx] = omega
 
     # def display(self):
 
     def test_image(self, image):
         dists = np.empty((self.num_ids))
-        # print(self.eigenvectors)
         for i in range(self.num_ids):
             eigenvecs = self.eigenvectors[i]
             avg_face = self.avg_faces[i]
             omega = np.empty(self.K)
-            centered_face = image - avg_face
             for component in range(self.K):
-                # print("\nCHECK", image.shape, avg_face.shape, image - avg_face)
                 omega[component] = np.matmul(
                     eigenvecs[component].T, image - avg_face)
-                # omega[component] = np.matmul(
-                #     (image - avg_face).T, eigenvecs[component])
-                # print(omega[component])
-            # print("SUB", omega-self.omegas[i],
-            #       np.linalg.norm(omega-self.omegas[i]))
+
             dists[i] = np.linalg.norm(omega - self.omegas[i])
 
-        # print(dists, self.num_ids)
-        # print(dists)
         return np.argmin(dists)
 
     def accuracy(self, images, labels):
@@ -124,11 +146,12 @@ class PCA:
             if pred == label:
                 if pred not in correct_count:
                     correct_count[pred] = 1
+                    self.save_test(image, pred, label)
                 else:
                     correct_count[pred] += 1
                 correct_counter += 1
 
-            self.save_test(image, pred, label)
+            # self.save_test(image, pred, label)
         print("Guess Tracker: ", class_count)
         print("Correct per Class: ", correct_count)
         # print(pred, label, correct_counter, total_counter)
